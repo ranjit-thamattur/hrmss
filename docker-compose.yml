@@ -1,0 +1,73 @@
+# Peak HRMS – local stack: Postgres + Cognito (cognito-local) + API (FastAPI) + Web (React on nginx)
+#   docker compose up --build        -> http://localhost:8080  (API docs: http://localhost:8000/docs)
+#   docker compose down              -> stop (data is kept in volumes)
+#   docker compose down -v           -> stop and wipe the database and the local Cognito users
+name: peak-hrms
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: hrms
+      POSTGRES_USER: hrms
+      POSTGRES_PASSWORD: hrms
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hrms -d hrms"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Local stand-in for AWS Cognito. The API creates the user pool, app client and role groups on first start.
+  cognito:
+    image: jagregory/cognito-local:latest
+    ports:
+      - "9229:9229"
+    volumes:
+      - cognito-data:/app/.cognito
+
+  api:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+      cognito:
+        condition: service_started
+    environment:
+      ENVIRONMENT: local
+      DATABASE_URL: postgresql+psycopg://hrms:hrms@db:5432/hrms
+      AUTH_MODE: ${AUTH_MODE:-cognito}
+      COGNITO_ENDPOINT: http://cognito:9229
+      COGNITO_REGION: ap-south-1
+      COGNITO_BOOTSTRAP: "true"
+      # cognito-local accepts any credentials; these are placeholders, not real keys
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: ap-south-1
+      JWT_SECRET: ${JWT_SECRET:-change-me-local-only}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
+      BIOMETRIC_ADAPTER: ${BIOMETRIC_ADAPTER:-excel}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-Peak@12345}
+      DEMO_EMPLOYEE_COUNT: ${DEMO_EMPLOYEE_COUNT:-256}
+      STORAGE_DIR: /app/storage
+      CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+    ports:
+      - "8000:8000"
+    volumes:
+      - api-files:/app/storage
+
+  web:
+    build: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  db-data:
+  cognito-data:
+  api-files:

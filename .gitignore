@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Local data and secrets
+.env
+*.env.local
+backend/hrms.db
+backend/*.db
+backend/storage/
+storage/
+
+# CDK
+infra/cdk.out/
+infra/.venv/
+cdk.context.json
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
