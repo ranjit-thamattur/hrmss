@@ -1,0 +1,37 @@
+{
+  "app": "python app.py",
+  "context": {
+    "envs": {
+      "dev": {
+        "region": "ap-south-1",
+        "dbInstance": "t4g.micro",
+        "apiCpu": 512,
+        "apiMemory": 1024,
+        "apiCount": 1,
+        "natGateways": 1,
+        "seedDemo": true,
+        "retain": false
+      },
+      "qa": {
+        "region": "ap-south-1",
+        "dbInstance": "t4g.micro",
+        "apiCpu": 512,
+        "apiMemory": 1024,
+        "apiCount": 1,
+        "natGateways": 1,
+        "seedDemo": true,
+        "retain": false
+      },
+      "prod": {
+        "region": "ap-south-1",
+        "dbInstance": "t4g.small",
+        "apiCpu": 1024,
+        "apiMemory": 2048,
+        "apiCount": 2,
+        "natGateways": 2,
+        "seedDemo": false,
+        "retain": true
+      }
+    }
+  }
+}
