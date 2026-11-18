@@ -1,104 +1,78 @@
-# Peak HRMS – Hotel Vivek
+# Peak HRMS
 
-Standalone HR, attendance and payroll system for Hotel Vivek: 3 paying entities, 5 locations, about 256 staff.
+Standalone HR, attendance and payroll application. First client: **Hotel Vivek (tenant code HV)** – 3 paying entities, 5 locations, about 256 staff.
 
-**Stack:** React 18 (Vite) · Python 3.12 FastAPI · PostgreSQL 16 · AWS Cognito (cognito-local in Docker) · Docker Compose · AWS CDK (ECS Fargate, RDS, S3, CloudFront).
+**Stack:** React 18 (Vite) · Python 3.12 FastAPI · PostgreSQL 16 · Cognito (cognito-local in Docker) · Docker Compose.
+AWS hosting, the deployment pipeline and backups are owned by the infrastructure owner (SCRUM-132) and are not in this repository.
 
-## What it does
+## Folder structure (SCRUM-128, decision 0006)
 
-| Area | Highlights |
-|---|---|
-| Employees | Manual onboarding, Excel import with a rejected-rows report (imported + rejected = rows in file), documents with expiry, change requests, dated history |
-| Users & access | Employee ≠ user. Converting creates the Cognito account (with role groups) and the biometric enrolment, each with its own status and retry. Six roles, entity/location scope, masked salary/PAN/Aadhaar/bank |
-| Attendance | Biometric adapter (Excel export, HTTP, mock), night shifts across midnight, missed punches, late, OT approval by HOD, regularisation, roster |
-| Leave | Balances, HOD then HR approval |
-| Payroll | Deterministic rules (PF, ESI, PT, LWF, TDS, OT), split salaries across entities, per-line checks, preparer → HR → Finance → lock; bank file, Tally XML, EPF ECR, ESI, payslip PDFs |
-| Statutory | Due-date calendar from locked runs, challan entry |
-| Exits | Clearance, F&F (gratuity, leave encashment, notice), letters, access removal |
-| Performance | Review cycles, merit-matrix increments with GM approval that become dated salary versions |
-| Reports, circulars, audit | 8 static reports with CSV, multilingual circulars (outbox), append-only audit trail |
+```
+services/
+  hrms-core/backend/        API common to every client (FastAPI, migrations, core tests)
+  hrms-core/frontend/       Web app common to every client (React, nginx)
+  hotel_vivek_backend/      Hotel Vivek only: client package, demo data, tests, sample Excel files
+  hotel_vivek_frontend/     Hotel Vivek only: names, texts, languages, theme
+docs/
+  architecture/             application layers and flows
+  features/                 one document per feature (SCRUM-129)
+  decisions/                decision records
+scripts/                    apply-update.sh (Git Bash), apply-update.ps1 (PowerShell)
+```
 
-## Run it (Docker – recommended)
+Rules: one database per client (`hrms_hv`); synthetic data only on laptops, real client data only in QA/production; no chatbot inside HRMS (an "Ask Brain" link comes after the demo, SCRUM-131).
 
-```powershell
+## Run on a laptop (Docker – recommended)
+
+```bash
 docker compose up --build
 ```
 
-- App: http://localhost:8080
-- API docs (OpenAPI): http://localhost:8000/docs
-- First start seeds 256 **synthetic** employees and these users (password `Peak@12345`):
+- App: http://localhost:8080 · API docs: http://localhost:8000/docs · Monitoring: http://localhost:8080/monitor (master admin)
+- First start loads 256 **synthetic** employees and these users (password `Peak@12345`):
   `admin@hotelvivek.local`, `hr@…`, `payroll@…`, `finance@…`, `hod@…`, `employee@…`
 
-Stop with `docker compose down`; wipe all data with `docker compose down -v`.
+`docker compose down` stops it; `docker compose down -v` wipes the laptop database and the local Cognito users.
 
-## Run it without Docker
+## Run without Docker
 
-Backend (Python 3.12):
+API (Python 3.12), from `services/hrms-core/backend`:
 
-```powershell
-cd backend
+```bash
 py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+source .venv/Scripts/activate          # PowerShell: .\.venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
-Copy-Item .env.example .env
+cp .env.example .env                   # TENANT=HV, TENANT_PACKAGE=hotel_vivek, SQLite hrms_hv.db
 alembic upgrade head
 python -m app.seed
 uvicorn app.main:app --reload --port 8000
 ```
 
-Frontend (Node 20), in a second terminal:
+Web (Node 20), second terminal:
 
-```powershell
-cd frontend
-npm install
-npm run dev
+```bash
+cd services/hrms-core/frontend && npm install     # once
+cd ../../hotel_vivek_frontend && npm run dev      # http://localhost:5173 with Hotel Vivek texts
 ```
 
-Open http://localhost:5173. Native mode uses SQLite and app-held passwords (`AUTH_MODE=local`).
+## Tests
 
-## Tests and checks
-
-```powershell
-cd backend
-ruff check .
-pytest -q
+```bash
+cd services/hrms-core/backend && ruff check . && pytest              # core: payroll, attendance, imports, F&F, monitoring
+cd ../../hotel_vivek_backend && pytest                                 # Hotel Vivek end-to-end API tests
 ```
 
-CI (`.github/workflows/ci.yml`) also checks migrations on Postgres, the audit-log lock, the front-end build, dependency scans and the Docker build.
-
-## Deploy to AWS (CDK)
-
-```powershell
-cd frontend; npm install; npm run build; cd ..\infra
-py -3.12 -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements.txt
-npm install -g aws-cdk@2.170.0
-cdk bootstrap                      # once per account/region
-cdk deploy -c env=dev              # or qa / prod
-cdk destroy -c env=dev             # remove dev/qa (prod keeps its database and files)
-```
-
-Outputs include the app URL. For `prod` (no demo data) create the first admin inside the API container:
-
-```powershell
-aws ecs execute-command --cluster <ClusterName> --task <task-id> --container api --interactive --command "python -m app.admin setup-org"
-aws ecs execute-command --cluster <ClusterName> --task <task-id> --container api --interactive --command "python -m app.admin create-admin you@company.com 'Your Name'"
-```
+CI (`.github/workflows/ci.yml`) also checks migrations on Postgres, the audit-log lock, both front-end builds, dependency scans, the Docker build, and that no Peak Brain/chatbot code is present.
 
 ## Branches
 
-`main` (base, production) → `qa` (created from main) → `feature/*` (created from main). PRs go feature → qa, then qa → main. See `docs/decisions/0001-branching-main-qa-feature.md`. To apply a new codebase zip on a feature branch: `.\scripts\apply-update.ps1 -Zip <zip> -Branch feature/<name>`.
+`main` (base) → `qa` (created from main) → `feature/*`. PRs go feature → qa, then qa → main (decision 0001).
+To apply a new codebase zip on a new branch (Git Bash):
 
-## Layout
-
-```
-backend/    FastAPI app (app/domain = pure payroll/attendance/import/F&F rules, app/routers = API), Alembic, tests
-frontend/   React app (src/pages), nginx config for the container
-infra/      AWS CDK app (one stack per environment)
-docs/       Decision records, open decisions, payroll rules, data dictionary
-data/samples/  Synthetic Excel files for import testing
-scripts/    apply-update.ps1, make_samples.py
+```bash
+./scripts/apply-update.sh ~/Downloads/peak-hrms-full.zip feature/SCRUM-xxx-short-name "SCRUM-xxx: what changed"
 ```
 
 ## Before go-live
 
-Read `docs/open-decisions.md`. The statutory rates are **sample values** and must be confirmed by Hotel Vivek's auditor, and the missed-punch rule has no default on purpose.
+Read `docs/open-decisions.md`. Statutory rates are **sample values** to be confirmed by the client's auditor, the missed-punch rule has no default on purpose, and payroll work is on hold until the client's salary sheets arrive.

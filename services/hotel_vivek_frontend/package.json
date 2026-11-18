@@ -1,0 +1,11 @@
+{
+  "name": "hotel-vivek-frontend",
+  "private": true,
+  "version": "1.1.0",
+  "description": "Hotel Vivek client folder for the hrms-core React app. Runs the core app with this folder as its tenant.",
+  "type": "module",
+  "scripts": {
+    "dev": "node run.mjs dev",
+    "build": "node run.mjs build"
+  }
+}

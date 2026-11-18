@@ -1,6 +1,6 @@
 # Payroll rules (as built)
 
-All amounts monthly, in rupees, rounded to the rupee. The code is `backend/app/domain/payroll_engine.py`; every rule below has a unit test.
+All amounts monthly, in rupees, rounded to the rupee. The code is `services/hrms-core/backend/app/domain/payroll_engine.py`; every rule below has a unit test.
 
 | Item | Rule (sample, confirm with auditor) |
 |---|---|

@@ -10,4 +10,7 @@ These are built as settings with **no guessed default** where a wrong guess chan
 | 4 | Payroll day and attendance cut-off | Policies | 26th / 25th (sample) |
 | 5 | OT rate and threshold | Statutory rules (`ot`) and Policies | 2× hourly, 30-minute threshold |
 | 6 | WhatsApp Business account for messages | Outbox | Messages queue but are not sent |
-| 7 | Production domain and TLS certificate | CDK | CloudFront default domain |
+| 7 | Production domain, hosting, pipeline host (Bitbucket or GitHub) | Infrastructure owner (SCRUM-132) | Open |
+| 8 | Biometric machine model and its API / export format | SCRUM-120 | Attendance runs on synthetic punches |
+| 9 | Sign-in method for the Ask Brain link (single sign-on if possible) | Infrastructure owner (SCRUM-131) | After the demo |
+| 10 | Salary sheets for payroll checks | Client (SCRUM-126) | Payroll work on hold |

@@ -12,18 +12,11 @@ node_modules/
 dist/
 .vite/
 
-# Local data and secrets
+# Local data and secrets (laptops hold synthetic data only)
 .env
 *.env.local
-backend/hrms.db
-backend/*.db
-backend/storage/
-storage/
-
-# CDK
-infra/cdk.out/
-infra/.venv/
-cdk.context.json
+*.db
+**/storage/
 
 # Editors / OS
 .vscode/*

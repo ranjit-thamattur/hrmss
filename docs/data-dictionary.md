@@ -24,3 +24,7 @@
 | policy_versions, statutory_rule_versions, app_settings | Dated settings |
 | audit_log | Append-only record of every change (database trigger blocks UPDATE/DELETE) |
 | import_batches | Every import with totals and rejected rows |
+| monitor_samples | One health check per core service (web, api, database, signin, biometric), kept 7 days (SCRUM-130) |
+| monitor_alerts | Alerts raised from the samples: severity, message, opened, resolved, acknowledged |
+
+One database per client (decision 0006): Hotel Vivek's is `hrms_hv`. `app_settings.tenant_code` stamps which client a database belongs to.

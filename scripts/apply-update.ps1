@@ -3,7 +3,7 @@
   Apply an updated Peak HRMS codebase zip on a new feature branch, commit, push and open a PR into qa.
 
 .EXAMPLE
-  cd $HOME\Downloads\PeakAI\hrms_HV\hrmss
+  cd $HOME\Downloads\PeakAI\hrms_HV\hrmss   (Git Bash users: scripts/apply-update.sh)
   .\scripts\apply-update.ps1 -Zip "$HOME\Downloads\peak-hrms-full.zip" -Branch "feature/payroll-fixes" -Message "Payroll fixes from review"
 
 .NOTES
@@ -16,7 +16,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Zip,
     [Parameter(Mandatory = $true)][string]$Branch,
     [string]$Message = "Update codebase",
-    [string]$Base = "main",
+    [string]$Base = "",   # empty = the branch you are on now
     [string]$PrInto = "qa",
     [switch]$NoPr
 )
@@ -28,6 +28,7 @@ $repo = $repo -replace "/", "\"
 Set-Location $repo
 if (-not (Test-Path $Zip)) { throw "Zip not found: $Zip" }
 if (git status --porcelain) { throw "You have uncommitted changes. Commit or stash them first (git stash)." }
+if (-not $Base) { $Base = (git branch --show-current) }
 
 Write-Host "1/6  Updating $Base from GitHub..." -ForegroundColor Cyan
 git fetch origin
@@ -45,8 +46,8 @@ if (-not $src) { throw "No docker-compose.yml in the zip - is this the full Peak
 
 Write-Host "4/6  Copying over the project (mirror)..." -ForegroundColor Cyan
 robocopy $src $repo /MIR /NFL /NDL /NJH /NJS /NP `
-    /XD .git node_modules .venv venv dist storage cdk.out __pycache__ .pytest_cache .ruff_cache `
-    /XF .env hrms.db *.pyc | Out-Null
+    /XD .git node_modules .venv venv dist storage __pycache__ .pytest_cache .ruff_cache `
+    /XF .env *.db *.pyc | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed with code $LASTEXITCODE" }
 Remove-Item $tmp -Recurse -Force
 
