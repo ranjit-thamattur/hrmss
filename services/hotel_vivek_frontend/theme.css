@@ -1,0 +1,5 @@
+/* Hotel Vivek theme. Overrides the CSS variables from hrms-core/frontend/src/styles.css.
+   The core teal is kept until Hotel Vivek shares brand colours. */
+:root {
+  --font-indic: 'Noto Sans Tamil', 'Noto Sans Devanagari';
+}
