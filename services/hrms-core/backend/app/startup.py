@@ -28,7 +28,7 @@ def check_tenant() -> None:
         if row is None:
             db.add(m.AppSetting(key="tenant_code", value=code))
             db.commit()
-            print(f"Database {settings.db_name} assigned to client {code}.", flush=True)
+            print(f"Database {get_settings().db_name} assigned to client {code}.", flush=True)
         elif row.value != code:
             sys.exit(f"This database belongs to client {row.value}, but this deployment is client {code}. Use that client's own database.")
 
