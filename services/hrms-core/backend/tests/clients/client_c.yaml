@@ -1,0 +1,3 @@
+# Test client C: an entity with no PF/ESI registration. Synthetic.
+client: {code: TC, name: Test Client C, country: IN, default_currency: INR, financial_year_start_month: 4}
+database: {name: hrms_test_c}
