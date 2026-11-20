@@ -4,7 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -14,12 +15,13 @@ from .core.identity import CognitoIdentity, get_identity
 from .db import get_db
 
 DB = Annotated[Session, Depends(get_db)]
+bearer = HTTPBearer(auto_error=False, description="Token from POST /api/auth/login")
 
 
-def current_user(db: DB, authorization: Annotated[str | None, Header()] = None) -> m.AppUser:
-    if not authorization or not authorization.lower().startswith("bearer "):
+def current_user(db: DB, creds: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)] = None) -> m.AppUser:
+    if creds is None or not creds.credentials:
         raise HTTPException(401, "Sign in first (Authorization: Bearer <token>).")
-    token = authorization.split(" ", 1)[1].strip()
+    token = creds.credentials.strip()
     idp = get_identity()
     if isinstance(idp, CognitoIdentity):
         ident = idp.verify(token, db)  # Cognito sub (no email in access tokens)
