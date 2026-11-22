@@ -1,0 +1,26 @@
+# Hotel Vivek (client HV): everything that makes this deployment "Hotel Vivek" lives in this file and in the
+# hotel_vivek package next to it. The HRMS core has no client name in it (decision 0007).
+# Laptops: synthetic data only. QA/production: real data, in Hotel Vivek's own AWS account (PEAKHRMS-132).
+client:
+  code: HV
+  name: Hotel Vivek
+  country: IN
+  default_currency: INR
+  financial_year_start_month: 4
+
+database:
+  name: hrms_hv             # one database per client
+
+domain: hrms.hotelvivek.example   # placeholder until Renjith sets the real domain
+aws:
+  account_id: "000000000000"      # placeholder: Hotel Vivek's own AWS account (set by infrastructure)
+  region: ap-south-1
+
+package: hotel_vivek        # the client's own backend: its APIs (/api/employee/...) and demo data
+
+onboarding:
+  required_person_fields: [first_name, last_name, date_of_birth, gender, phone]
+
+features:
+  ask_brain: false          # PEAKHRMS-131, after the demo
+  payroll: false            # on hold until the salary sheets arrive

@@ -1,0 +1,105 @@
+# Merge checks (decision 0002). Runs on every pull request into qa or main, and on pushes to them.
+# Backend first (decision 0007): hrms-core (common) + hotel_vivek_backend (Hotel Vivek's APIs). No frontend job yet.
+name: CI
+
+on:
+  pull_request:
+    branches: [main, qa]
+  push:
+    branches: [main, qa]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: hrms_hv
+          POSTGRES_USER: hrms
+          POSTGRES_PASSWORD: hrms
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hrms" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      ENVIRONMENT: test
+      AUTH_MODE: local
+      JWT_SECRET: ci-only-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/hrms-core/backend/requirements*.txt
+      - name: Install
+        working-directory: services/hrms-core/backend
+        run: pip install -r requirements-dev.txt
+      - name: Lint (ruff) - core and Hotel Vivek
+        run: |
+          ruff check services/hrms-core/backend
+          ruff check services/hotel_vivek_backend
+      - name: No client names in the core, no Peak Brain / chatbot code
+        run: |
+          if grep -rniE "hotel ?vivek" services/hrms-core --include=*.py; then echo "Client names belong in the client's YAML/package (decision 0007)."; exit 1; fi
+          if grep -rniE "peak ?brain|chatbot" services --include=*.py; then echo "HRMS is standalone (PEAKHRMS-131)."; exit 1; fi
+      - name: Models match the entity catalogue
+        working-directory: services/hrms-core/backend
+        run: python scripts/gen_models.py --check
+      - name: Core tests (eleven rules, catalogue, dating, rules module)
+        working-directory: services/hrms-core/backend
+        run: pytest -q
+      - name: Hotel Vivek tests (onboarding and employee APIs)
+        working-directory: services/hotel_vivek_backend
+        run: pytest -q
+      - name: Migration check on Postgres (Hotel Vivek database) + append-only audit log
+        working-directory: services/hrms-core/backend
+        env:
+          DATABASE_URL: postgresql+psycopg://hrms:hrms@localhost:5432/hrms_hv
+          CLIENT_CONFIG: ../../hotel_vivek_backend/client.yaml
+          CLIENT_PACKAGE_PATH: ../../hotel_vivek_backend
+          SEED_DEMO: "true"
+        run: |
+          alembic upgrade head
+          python -m app.startup
+          python - <<'PY'
+          from sqlalchemy import create_engine, text
+          from app.config import get_settings
+          eng = create_engine(get_settings().database_url)
+          with eng.connect() as c:
+              try:
+                  c.execute(text("UPDATE audit_log SET actor='x'"))
+                  c.commit()
+                  raise SystemExit("audit_log accepted an UPDATE")
+              except Exception as e:
+                  if "append-only" not in str(e):
+                      raise
+                  print("audit_log is append-only: OK")
+          PY
+          alembic downgrade base
+          alembic upgrade head
+      - name: API smoke test with the Postman collection (newman)
+        working-directory: services/hrms-core/backend
+        env:
+          DATABASE_URL: postgresql+psycopg://hrms:hrms@localhost:5432/hrms_hv
+          CLIENT_CONFIG: ../../hotel_vivek_backend/client.yaml
+          CLIENT_PACKAGE_PATH: ../../hotel_vivek_backend
+          SEED_DEMO: "true"
+        run: |
+          python -m app.startup
+          (uvicorn app.main:app --port 8000 &) ; sleep 6
+          npx --yes newman@6 run ../../../postman/Peak-HRMS-Core.postman_collection.json -e ../../../postman/local.postman_environment.json --working-dir ../../../postman --bail
+      - name: Dependency scan (pip-audit)
+        working-directory: services/hrms-core/backend
+        run: pip-audit -r requirements.txt --ignore-vuln PYSEC-2025-183
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose build

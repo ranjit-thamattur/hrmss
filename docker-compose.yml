@@ -1,0 +1,70 @@
+# Peak HRMS for Hotel Vivek (client HV) - LAPTOP stack with SYNTHETIC data only:
+#   Postgres (database hrms_hv) + Cognito (cognito-local) + API (hrms-core + hotel_vivek package).
+# Backend first (18-Nov): no web container yet; test the APIs with Postman or http://localhost:8000/docs.
+# QA and production (real client data, the client's own AWS account) are set up by infrastructure (PEAKHRMS-132).
+#   docker compose up --build -d     start          docker compose logs -f api    watch the API
+#   docker compose down              stop (data kept)    docker compose down -v   stop and wipe database + local Cognito users
+name: peak-hrms
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: hrms_hv   # one database per client (client.yaml -> database.name)
+      POSTGRES_USER: hrms
+      POSTGRES_PASSWORD: hrms
+    ports:
+      - "5432:5432"
+    volumes:
+      - hv-core-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hrms -d hrms_hv"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Local stand-in for AWS Cognito. The API creates the user pool, app client and role groups on first start.
+  cognito:
+    image: jagregory/cognito-local:latest
+    ports:
+      - "9229:9229"
+    volumes:
+      - hv-core-cognito:/app/.cognito
+
+  api:
+    build:
+      context: ./services
+      dockerfile: hotel_vivek_backend/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      cognito:
+        condition: service_started
+    environment:
+      ENVIRONMENT: local          # laptops only: synthetic data allowed
+      CLIENT_CONFIG: /app/client/client.yaml
+      CLIENT_PACKAGE_PATH: /app/client
+      DATABASE_URL: postgresql+psycopg://hrms:hrms@db:5432/hrms_hv
+      AUTH_MODE: ${AUTH_MODE:-cognito}
+      COGNITO_ENDPOINT: http://cognito:9229
+      COGNITO_REGION: ap-south-1
+      COGNITO_BOOTSTRAP: "true"
+      # cognito-local accepts any credentials; these are placeholders, not real keys
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      AWS_DEFAULT_REGION: ap-south-1
+      JWT_SECRET: ${JWT_SECRET:-change-me-local-only}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:-}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-Peak@12345}
+      STORAGE_DIR: /app/storage
+      CORS_ORIGINS: http://localhost:5173,http://localhost:8080
+    ports:
+      - "8000:8000"
+    volumes:
+      - hv-core-files:/app/storage
+
+volumes:
+  hv-core-db:
+  hv-core-cognito:
+  hv-core-files:
