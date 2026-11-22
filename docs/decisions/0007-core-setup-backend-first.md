@@ -1,6 +1,6 @@
 # 0007 - HRMS core: Company Setup first, backend first, one YAML per client
 
-Status: accepted · 2026-11-18 (design review "HRMS Core: Company Setup") · Jira: PEAKHRMS-128, PEAKHRMS-132, PEAKHRMS-131
+Status: accepted · 2026-11-18 (design review "HRMS Core: Company Setup") · Jira: PEAKHRMS-135, 136-141, 147-170 (built); PEAKHRMS-132, 131 (others)
 
 ## Decision
 1. **Company Setup comes first, then onboarding.** Stage 1 entities: 1 Client, 2 Legal entity, 5 State, 6 Location, 7 Entity at location, 8 Department.
