@@ -13926,6 +13926,166 @@
               }
             }
           ]
+        },
+        {
+          "name": "Employee master template (Excel)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/import/template.xlsx",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "employee",
+                "import",
+                "template.xlsx"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect([200]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Employee master import (dry run): 9 rows, 4 in (3 people), 5 rejected with reasons",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "employee",
+                "import"
+              ]
+            },
+            "description": "If Postman cannot find the file, pick postman/samples/employee-master-import.xlsx in the Body tab.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "samples/employee-master-import.xlsx"
+                },
+                {
+                  "key": "dry_run",
+                  "value": "true",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect([200]).to.include(pm.response.code));",
+                  "const r = pm.response.json();",
+                  "pm.test('reconciles', () => pm.expect(r.counts_reconcile).to.eql(true));",
+                  "pm.test('rows', () => { pm.expect(r.total).to.eql(9); pm.expect(r.imported).to.eql(4); pm.expect(r.rejected).to.eql(5); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Import with your own column names (mapping)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/employee/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "employee",
+                "import"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "samples/employee-master-import.xlsx"
+                },
+                {
+                  "key": "dry_run",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "mapping",
+                  "value": "{\"DOJ\": \"joining_date\"}",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect([200]).to.include(pm.response.code));",
+                  "pm.test('reconciles', () => pm.expect(pm.response.json().counts_reconcile).to.eql(true));"
+                ]
+              }
+            }
+          ]
         }
       ],
       "description": "Hotel Vivek's own APIs on top of the core. One person, one login, one employment assignment per job with its pay share."

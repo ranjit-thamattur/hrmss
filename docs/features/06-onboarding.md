@@ -30,3 +30,23 @@ Example body:
   "login": {"email": "asha@hotelvivek.local", "roles": ["employee"]}
 }
 ```
+
+## Employee master import (PEAKHRMS-125, PEAKHRMS-42)
+
+| Call | What it does |
+|---|---|
+| `GET /api/employee/import/template.xlsx` | template: one row per job, "How to" sheet; this client's required columns highlighted |
+| `POST /api/employee/import` (multipart: `file`, `dry_run`, `mapping`) | imports people + jobs from Excel or CSV |
+
+- One row = one job. Rows with the same `person_ref` are one person with several jobs (e.g. 60/40 across two entities).
+- References by code: `legal_entity_code`, `location_code`, `department_code`, `designation_code` (required), `grade_code`,
+  `employment_type_code`, `cost_centre_code`, `shift_code`, `weekly_off_code`; manager by `reports_to_employee_number`
+  (already in the system or on an earlier row); optional `login_email` + `login_roles` (not created on a dry run).
+- Each person goes through the same onboarding as `/api/employee/add`, so every rule applies; a person is imported whole or not at all.
+- **Column mapping:** use the client's own headers by sending `mapping` as JSON, e.g. `{"Emp Name": "first_name", "DOJ": "joining_date"}`.
+- **CSV** works too, so a Google Sheet can be imported with File > Download > Comma-separated values.
+- The report lists every person imported (employee numbers, temporary passwords for new logins - shown once) and every rejected
+  person with its rows and reasons. `imported + rejected = total` rows (`counts_reconcile: true`). `dry_run=true` saves nothing.
+
+Sample (synthetic): `postman/samples/employee-master-import.xlsx` - 9 rows: 4 rows (3 people, one with two jobs) import,
+5 rows are rejected (entity not at that site, unknown location, missing phone, pay shares over 100%).

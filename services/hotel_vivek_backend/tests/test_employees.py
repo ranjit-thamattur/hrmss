@@ -96,3 +96,68 @@ def test_scope_and_masking(c):
     team = c.get("/api/employee", headers=hod).json()["items"]
     assert 0 < len(team) < 27
     assert all((p.get("pan") or "X").startswith("X") for p in team)
+
+
+# ---------------------------------------------------------------- employee master import (PEAKHRMS-125, PEAKHRMS-42)
+def _sheet(rows, headers=None):
+    import io
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(headers or ["person_ref", "first_name", "last_name", "date_of_birth", "gender", "phone", "legal_entity_code", "location_code",
+                          "department_code", "designation_code", "pay_share", "joining_date"])
+    for r in rows:
+        ws.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return {"file": ("employees.xlsx", buf.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
+
+
+ROWS = [
+    ["", "Imp", "One", "1991-01-01", "male", "9000080001", "HVH", "CHN", "FO", "FOE", 100, "2026-04-01"],
+    ["T2", "Imp", "Two", "1991-01-02", "female", "9000080002", "HVH", "CHN", "FB", "STW", 60, "2026-04-01"],
+    ["T2", None, None, None, None, None, "HVR", "OOT", "FB", "STW", 40, "2026-04-01"],
+    ["", "Imp", "Bad", "1991-01-03", "male", "9000080003", "HVF", "OOT", "KIT", "CMS", 100, "2026-04-01"],  # HVF has no Ooty site
+    ["", "Imp", "NoPhone", "1991-01-04", "male", None, "HVH", "CHN", "FO", "FOE", 100, "2026-04-01"],
+]
+
+
+def test_employee_import_dry_run_then_real(c):
+    h = login(c, "hr")
+    assert c.get("/api/employee/import/template.xlsx", headers=h).status_code == 200
+    before = c.get("/api/employee", headers=h).json()["total"]
+    dry = c.post("/api/employee/import", headers=h, files=_sheet(ROWS), data={"dry_run": "true"}).json()
+    assert (dry["total"], dry["imported"], dry["rejected"], dry["people_imported"]) == (5, 3, 2, 2) and dry["counts_reconcile"]
+    assert c.get("/api/employee", headers=h).json()["total"] == before  # dry run saved nothing
+    real = c.post("/api/employee/import", headers=h, files=_sheet(ROWS)).json()
+    assert real["imported"] == 3 and real["people_imported"] == 2
+    two = next(p for p in real["people"] if p["person"] == "Imp Two")
+    assert [n[:4] for n in two["employee_numbers"]] == ["HVH-", "HVR-"]
+    assert c.get("/api/employee", headers=h).json()["total"] == before + 2
+    again = c.post("/api/employee/import", headers=h, files=_sheet(ROWS[:1]), data={"dry_run": "true"}).json()
+    assert again["rejected"] == 1  # same name + date of birth: already a person
+
+
+def test_employee_import_with_column_mapping(c):
+    h = login(c, "hr")
+    headers = ["Emp First", "Surname", "DOB", "Sex", "Mobile", "Company", "Site", "Dept", "Role"]
+    rows = [["Map", "Ped", "1992-03-03", "female", "9000080009", "HVH", "MDU", "HK", "RA"]]
+    mapping = {"Emp First": "first_name", "Surname": "last_name", "DOB": "date_of_birth", "Sex": "gender", "Mobile": "phone",
+               "Company": "legal_entity_code", "Site": "location_code", "Dept": "department_code", "Role": "designation_code"}
+    import json
+
+    r = c.post("/api/employee/import", headers=h, files=_sheet(rows, headers), data={"dry_run": "true", "mapping": json.dumps(mapping)})
+    assert r.status_code == 200, r.text
+    assert r.json()["imported"] == 1
+    bad = c.post("/api/employee/import", headers=h, files=_sheet(rows, headers), data={"mapping": '{"Emp First": "nope"}'})
+    assert bad.status_code == 422
+
+
+def test_employee_import_csv_and_permissions(c):
+    csv = "first_name,last_name,date_of_birth,gender,phone,legal_entity_code,location_code,department_code,designation_code\n" \
+          "Csv,Person,1993-04-04,male,9000080010,HVH,CHN,FO,FOE\n"
+    files = {"file": ("employees.csv", csv.encode(), "text/csv")}
+    assert c.post("/api/employee/import", headers=login(c, "hr"), files=files, data={"dry_run": "true"}).json()["imported"] == 1
+    assert c.post("/api/employee/import", headers=login(c, "employee"), files=files, data={"dry_run": "true"}).status_code == 403

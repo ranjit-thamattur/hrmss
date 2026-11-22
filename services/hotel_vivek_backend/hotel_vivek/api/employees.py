@@ -9,18 +9,23 @@
   POST /api/employee/{person_rid}/assignments/{rid}/end     end a job on a date
   POST /api/employee/{person_rid}/login                     give the person a login (one per person)
   POST /api/employee/{person_rid}/deactivate                deactivate (all jobs must be ended); login is disabled
+  GET  /api/employee/import/template.xlsx                   employee master template (one row per job)
+  POST /api/employee/import                                 import people + jobs from Excel/CSV (dry_run, column mapping)
 """
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import Response as RawResponse
 from pydantic import BaseModel, Field
 
-from app.core import engine
+from app import models as m
+from app.core import access, engine
+from app.core.audit import jsonable
 from app.core.schemas import EndRecord, change_schema, split_change
 from app.core.specs import SPECS
 from app.deps import C
-from app.services import onboarding, users
+from app.services import employee_import, onboarding, users
 from app.services.onboarding import AssignmentIn, LoginIn, OnboardIn
 
 router = APIRouter(prefix="/api/employee", tags=["Hotel Vivek: employees"])
@@ -48,6 +53,25 @@ def add(body: OnboardIn, ctx: C) -> dict:
     out = onboarding.onboard(ctx, body)
     ctx.db.commit()
     return out
+
+
+@router.get("/import/template.xlsx", summary="Employee master template: one row per job, person_ref groups jobs of one person")
+def import_template(ctx: C) -> RawResponse:
+    access.require(ctx, "persons", "import")
+    data = employee_import.template(ctx.db.get(m.Client, ctx.client_id))
+    return RawResponse(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                       headers={"Content-Disposition": 'attachment; filename="employee-master-template.xlsx"'})
+
+
+@router.post("/import", summary="Import people + jobs from Excel or CSV (dry_run; mapping = your column names to ours)")
+async def import_(ctx: C, file: UploadFile = File(...), dry_run: bool = Form(False),
+                  mapping: Optional[str] = Form(None, description='JSON, e.g. {"Emp Name": "first_name", "DOJ": "joining_date"}')) -> dict:
+    report = employee_import.import_file(ctx, await file.read(), dry_run, mapping)
+    if dry_run:
+        ctx.db.rollback()
+    else:
+        ctx.db.commit()
+    return jsonable(report)
 
 
 @router.get("", summary="Employees in your data scope, with their current jobs")

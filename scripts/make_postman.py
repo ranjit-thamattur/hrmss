@@ -289,6 +289,16 @@ onboard = folder("04 Onboarding an employee (Hotel Vivek: /api/employee)", [
     req("Employee sees only themselves", "GET", "/api/employee", token="token_employee",
         ev=expect(200, "pm.test('self only', () => pm.expect(pm.response.json().total).to.eql(1));")),
     req("Delete is refused = 405", "DELETE", "/api/employee/{{emp_rid}}", ev=expect(405)),
+    req("Employee master template (Excel)", "GET", "/api/employee/import/template.xlsx"),
+    req("Employee master import (dry run): 9 rows, 4 in (3 people), 5 rejected with reasons", "POST", "/api/employee/import",
+        formdata=[{"key": "file", "type": "file", "src": "samples/employee-master-import.xlsx"}, {"key": "dry_run", "value": "true", "type": "text"}],
+        ev=expect(200, "const r = pm.response.json();", "pm.test('reconciles', () => pm.expect(r.counts_reconcile).to.eql(true));",
+                  "pm.test('rows', () => { pm.expect(r.total).to.eql(9); pm.expect(r.imported).to.eql(4); pm.expect(r.rejected).to.eql(5); });"),
+        desc="If Postman cannot find the file, pick postman/samples/employee-master-import.xlsx in the Body tab."),
+    req("Import with your own column names (mapping)", "POST", "/api/employee/import",
+        formdata=[{"key": "file", "type": "file", "src": "samples/employee-master-import.xlsx"}, {"key": "dry_run", "value": "true", "type": "text"},
+                  {"key": "mapping", "value": '{"DOJ": "joining_date"}', "type": "text"}],
+        ev=expect(200, "pm.test('reconciles', () => pm.expect(pm.response.json().counts_reconcile).to.eql(true));")),
 ], "Hotel Vivek's own APIs on top of the core. One person, one login, one employment assignment per job with its pay share.")
 
 # ---------------------------------------------------------------- 05 users
@@ -341,10 +351,39 @@ def sample_import(path: Path) -> None:
     wb.save(path)
 
 
+def sample_employees(path: Path) -> None:
+    """SYNTHETIC employee master for the Hotel Vivek demo data: good rows, a two-job person and rows that must be rejected."""
+    from openpyxl import Workbook
+
+    cols = ["person_ref", "first_name", "last_name", "date_of_birth", "gender", "phone", "email", "legal_entity_code", "location_code",
+            "department_code", "designation_code", "grade_code", "employment_type_code", "pay_share", "is_primary", "joining_date",
+            "reports_to_employee_number"]
+    rows = [
+        ["", "Imran", "Sample", "1993-07-01", "male", "9000070001", "imran.sample@example.com", "HVH", "CHN", "FO", "FOE", "G1", "PERM", 100, "yes", "2026-04-01", "HVH-0004"],
+        ["", "Janaki", "Sample", "1991-02-11", "female", "9000070002", "", "HVR", "OOT", "HK", "RA", "G1", "PERM", "", "", "2026-04-01", ""],
+        ["P3", "Lokesh", "Sample", "1989-09-09", "male", "9000070003", "", "HVH", "CHN", "FB", "STW", "G2", "PERM", 60, "yes", "2026-04-01", ""],
+        ["P3", "", "", "", "", "", "", "HVR", "OOT", "FB", "STW", "G2", "PERM", 40, "no", "2026-04-01", ""],
+        ["", "Wrong", "Site", "1990-01-01", "male", "9000070004", "", "HVF", "OOT", "KIT", "CMS", "", "", "", "", "", ""],
+        ["", "Unknown", "Location", "1990-01-02", "female", "9000070005", "", "HVH", "XYZ", "FO", "FOE", "", "", "", "", "", ""],
+        ["", "No", "Phone", "1990-01-03", "male", "", "", "HVH", "CHN", "FO", "FOE", "", "", "", "", "", ""],
+        ["P8", "Over", "Hundred", "1990-01-04", "female", "9000070008", "", "HVH", "CHN", "FO", "FOE", "", "", 80, "yes", "", ""],
+        ["P8", "", "", "", "", "", "", "HVR", "OOT", "FO", "FOE", "", "", 40, "no", "", ""],
+    ]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Employees"
+    ws.append(cols)
+    for r in rows:
+        ws.append([None if v == "" else v for v in r])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(path)
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     (OUT / "Peak-HRMS-Core.postman_collection.json").write_text(json.dumps(collection, indent=2), encoding="utf-8")
     (OUT / "local.postman_environment.json").write_text(json.dumps(env, indent=2), encoding="utf-8")
     sample_import(OUT / "samples" / "departments-import.xlsx")
+    sample_employees(OUT / "samples" / "employee-master-import.xlsx")
     n = json.dumps(collection).count('"request": {')
     print(f"Postman: {n} requests -> {OUT}")

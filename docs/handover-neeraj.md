@@ -53,7 +53,7 @@ Run collection. Folder 02 has a working request body for every entity - copy the
 - Errors: `{"detail": "..."}` in plain language - show it as is. 401 sign in again, 403 no permission, 404 not found or outside the
   user's scope, 409 duplicate / conflict, 422 invalid input (pydantic list or a message).
 - Field list and formats for every form: docs/data-dictionary.md (generated from the catalogue).
-- Onboarding form: `POST /api/employee/add` (docs/features/06-onboarding.md).
+- Onboarding form: `POST /api/employee/add`; bulk upload: `POST /api/employee/import` with `dry_run` first (docs/features/06-onboarding.md).
 - First screen: Legal entity (PEAKHRMS-171) - `/api/setup/legal-entities`.
 
 ## 6. Who to ask
