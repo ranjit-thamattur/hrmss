@@ -1,0 +1,4 @@
+# Test client A: one legal entity, one location, about 20 staff (design doc 18-Nov). Synthetic.
+client: {code: TA, name: Test Client A, country: IN, default_currency: INR, financial_year_start_month: 4}
+database: {name: hrms_test_a}
+onboarding: {required_person_fields: [first_name, date_of_birth]}
