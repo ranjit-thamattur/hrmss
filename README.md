@@ -17,14 +17,13 @@ scripts/                        apply-update.sh/.ps1, make_postman.py, make_docs
 ```
 
 ## Run on a laptop (Docker)
+Full step-by-step guide for anyone (Windows, macOS, Linux): **[RUN-LOCALLY.md](RUN-LOCALLY.md)**.
 ```bash
-docker compose up --build -d
-curl http://localhost:8000/api/health        # {"status":"ok", "client":"HV", ...}
+docker compose up --build -d          # db + local Cognito + API, synthetic demo data
+bash scripts/smoke-test.sh            # signs in as every role; ends with SMOKE TEST PASSED
 ```
-- API docs (try every call): http://localhost:8000/docs
-- First start loads **synthetic** data: 3 legal entities, 5 locations, 27 people (one with two jobs, 60/40), and these logins,
-  password `Peak@12345`: `admin@hotelvivek.local`, `hr@`, `hr.ooty@` (Ooty only), `payroll@`, `finance@`, `hod@`, `employee@`.
-- `docker compose logs -f api` to watch it, `docker compose down` to stop, `docker compose down -v` to wipe the laptop database.
+API docs: http://localhost:8000/docs · demo logins `admin@hotelvivek.local` (and hr@, hr.ooty@, payroll@, finance@, hod@, employee@),
+password `Peak@12345` · optional settings in `.env` (copy `.env.example`).
 
 ## Test
 ```bash

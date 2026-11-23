@@ -1,20 +1,29 @@
-# Peak HRMS for Hotel Vivek (client HV) - LAPTOP stack with SYNTHETIC data only:
-#   Postgres (database hrms_hv) + Cognito (cognito-local) + API (hrms-core + hotel_vivek package).
-# Backend first (18-Nov): no web container yet; test the APIs with Postman or http://localhost:8000/docs.
-# QA and production (real client data, the client's own AWS account) are set up by infrastructure (PEAKHRMS-132).
-#   docker compose up --build -d     start          docker compose logs -f api    watch the API
-#   docker compose down              stop (data kept)    docker compose down -v   stop and wipe database + local Cognito users
+# Peak HRMS - run everything on your own machine with ONE command (guide: RUN-LOCALLY.md)
+#
+#   docker compose up --build -d        start   (first time ~2-3 min; loads SYNTHETIC Hotel Vivek demo data)
+#   docker compose ps                   status  (api should be "healthy")
+#   docker compose logs -f api          watch the API (Ctrl+C to stop watching)
+#   docker compose down                 stop    (your local data is kept)
+#   docker compose down -v              stop and WIPE local data (next start = fresh demo data)
+#   docker compose --profile tools up -d   also start Adminer, a database viewer, on http://localhost:8081
+#
+# What runs:  db (Postgres 16, database hrms_hv) + cognito (local stand-in for AWS Cognito) + api (FastAPI)
+# Then open:  http://localhost:8000/docs     sign in as admin@hotelvivek.local / Peak@12345
+#
+# Ports and settings can be changed in a .env file next to this one (copy .env.example). LAPTOP ONLY:
+# synthetic data. QA and production run in the client's own AWS account (PEAKHRMS-132), not with this file.
 name: peak-hrms
 
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: hrms_hv   # one database per client (client.yaml -> database.name)
+      POSTGRES_DB: hrms_hv            # one database per client (client.yaml -> database.name)
       POSTGRES_USER: hrms
-      POSTGRES_PASSWORD: hrms
+      POSTGRES_PASSWORD: hrms         # laptop only
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - hv-core-db:/var/lib/postgresql/data
     healthcheck:
@@ -23,11 +32,12 @@ services:
       timeout: 5s
       retries: 20
 
-  # Local stand-in for AWS Cognito. The API creates the user pool, app client and role groups on first start.
+  # Local stand-in for AWS Cognito (sign-in). The API creates the user pool, app client and role groups on first start.
   cognito:
     image: jagregory/cognito-local:latest
+    restart: unless-stopped
     ports:
-      - "9229:9229"
+      - "${COGNITO_PORT:-9229}:9229"
     volumes:
       - hv-core-cognito:/app/.cognito
 
@@ -35,17 +45,19 @@ services:
     build:
       context: ./services
       dockerfile: hotel_vivek_backend/Dockerfile
+    image: peak-hrms-api:local
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
       cognito:
         condition: service_started
     environment:
-      ENVIRONMENT: local          # laptops only: synthetic data allowed
+      ENVIRONMENT: local              # laptops only: synthetic demo data allowed
       CLIENT_CONFIG: /app/client/client.yaml
       CLIENT_PACKAGE_PATH: /app/client
       DATABASE_URL: postgresql+psycopg://hrms:hrms@db:5432/hrms_hv
-      AUTH_MODE: ${AUTH_MODE:-cognito}
+      AUTH_MODE: ${AUTH_MODE:-cognito}  # set AUTH_MODE=local in .env if local Cognito gives trouble
       COGNITO_ENDPOINT: http://cognito:9229
       COGNITO_REGION: ap-south-1
       COGNITO_BOOTSTRAP: "true"
@@ -58,11 +70,24 @@ services:
       SEED_DEMO: ${SEED_DEMO:-true}
       DEMO_PASSWORD: ${DEMO_PASSWORD:-Peak@12345}
       STORAGE_DIR: /app/storage
-      CORS_ORIGINS: http://localhost:5173,http://localhost:8080
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     volumes:
       - hv-core-files:/app/storage
+
+  # Optional database viewer: docker compose --profile tools up -d  ->  http://localhost:8081
+  # System: PostgreSQL · Server: db · Username: hrms · Password: hrms · Database: hrms_hv
+  adminer:
+    image: adminer:4
+    profiles: ["tools"]
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
 
 volumes:
   hv-core-db:
